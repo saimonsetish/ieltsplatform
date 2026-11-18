@@ -11,21 +11,27 @@ function dq(){return Q[new Date().getDate()%Q.length]}
 function daily(v){var q=dq(),r=ok(q,v);D.daily={date:today(),ok:r};xp(r?15:5,r?"Correct!":"Good try");if(r)boom();draw()}
 function go(v){S.view=v;S.hwid=S.recid=S.lid=null;window.scrollTo(0,0);draw()}
 function login(r){S.role=r;S.view=r=="student"?"dash":"queue";draw()}
+function submissionSkills(a){if(a.lab)return [a.lab];return ["W","S"].filter(function(k){return !!(a[k]&&a[k].text&&a[k].text.trim())})}
+function submissionStatus(a){if(a.status)return a.status;var ks=submissionSkills(a);return ks.length?"submitted":"reviewed"}
+function openReview(id){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;S.cur=id;if(a.status==="submitted"||!a.status)a.status="in_review";save();go("grade")}
+function reviewDraftChange(id,k,i,v){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;a.reviewDraft=a.reviewDraft||{};a.reviewDraft[k]=a.reviewDraft[k]||{g:[],c:a[k].c||""};a.reviewDraft[k].g[i]=v;save()}
+function reviewCommentChange(id,k,v){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;a.reviewDraft=a.reviewDraft||{};a.reviewDraft[k]=a.reviewDraft[k]||{g:[],c:""};a.reviewDraft[k].c=v;save()}
+function saveReviewDraft(id){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;a.status="in_review";save();toast("Review draft saved")}
 function start(){S.ans={};S.w="";S.s="";S.sec=0;S.ends=[];S.fl={};go("test")}
 function setA(id,v){S.ans[id]=v;var c=document.getElementById("n_"+id);if(c)c.className="qn"+(v?" on":"")+(S.fl&&S.fl[id]?" fl":"")}
 function speak(){try{speechSynthesis.cancel();var u=new SpeechSynthesisUtterance(SCRIPT);u.lang="en-GB";speechSynthesis.speak(u)}catch(e){alert("Audio unavailable in this browser")}}
 function finish(){
  var wr=[],tot={Reading:0,Listening:0},sc={Reading:0,Listening:0};
  Q.forEach(function(q){tot[q.s]++;if(ok(q,S.ans[q.id]))sc[q.s]++;else wr.push({id:q.id,mine:S.ans[q.id]||"(blank)"})});
- var at={id:Date.now(),date:new Date().toLocaleDateString(),wr:wr,
+ var at={id:Date.now(),date:new Date().toLocaleDateString(),createdAt:Date.now(),studentId:"demo",studentName:D.name||"Student Demo",status:(S.w.trim()||S.s.trim())?"submitted":"reviewed",revisionNo:0,history:[],reviewDraft:{},wr:wr,
   R:{sc:sc.Reading,n:tot.Reading,b:band(sc.Reading,tot.Reading)},L:{sc:sc.Listening,n:tot.Listening,b:band(sc.Listening,tot.Listening)},
   W:{text:S.w,g:null,c:""},S:{text:S.s,g:null,c:""}};
  D.att.unshift(at);D.sc.R.push(at.R.b);D.sc.L.push(at.L.b);xp((sc.Reading+sc.Listening)*10+50,"Mock complete");S.cur=at.id;go("result");boom()}
-function grade(id){var a=D.att.filter(function(x){return x.id==id})[0];
- ["W","S"].forEach(function(k){var cr=k=="W"?WS:SS,v=[];
-  for(var i=0;i<4;i++){var e=document.getElementById(k+i);if(!e||e.value==="")return;v.push(+e.value)}
-  var nw=!a[k].g;a[k].g=v;a[k].b=avg(v);if(nw&&!a.lab)D.sc[k].push(a[k].b);a[k].c=document.getElementById(k+"c").value;D.xp+=0});
- save();alert("Saved. The student sees the grades instantly.");go("queue")}
+function grade(id){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;var skills=submissionSkills(a);if(!skills.length){toast("There is no written response to review");return}
+ var values={};for(var j=0;j<skills.length;j++){var k=skills[j],v=[];for(var i=0;i<4;i++){var e=document.getElementById(k+i),n=e?Number(e.value):NaN;if(!e||e.value===""||!Number.isFinite(n)||n<0||n>9||Math.round(n*2)!==n*2){toast("Enter all four "+(k==="W"?"Writing":"Speaking")+" scores from 0 to 9 in 0.5 steps");return}v.push(n)}values[k]=v}
+ skills.forEach(function(k){var nw=!a[k].g;a[k].g=values[k];a[k].b=avg(values[k]);var d=(a.reviewDraft||{})[k]||{};a[k].c=d.c!==undefined?d.c:(a[k].c||"");if(nw&&!a.lab)D.sc[k].push(a[k].b)});
+ a.status="reviewed";a.reviewedAt=Date.now();a.reviewDraft={};a.feedbackRequest="";save();toast("Feedback sent to "+(a.studentName||"the learner"));go("queue")}
+function sendForRevision(id,k){var a=D.att.filter(function(x){return x.id==id})[0];if(!a)return;var d=(a.reviewDraft||{})[k]||{},message=d.c||a[k].c||"";if(!message.trim()){toast("Add feedback explaining what to improve in "+NM[k]);return}a.feedbackRequest=message;a.revisionSkill=k;a.status="revision_requested";a.reviewDraft={};save();toast(NM[k]+" revision requested");go("queue")}
 function note(n,v){D.notes[n]=v;save()}
 function stud(){var b=[];D.att.forEach(function(a){if(!a.lab){b.push(a.R.b);b.push(a.L.b)}});return b.length?avg(b):"–"}
 function drill(s){S.dr=s;S.ans={};S.drDone=false;go('drill')}
